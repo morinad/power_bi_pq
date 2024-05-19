@@ -1,0 +1,54 @@
+let 
+function=
+(catalog_id as text, client_id as text, client_secret as text, dataset_id as text, dax_query as text )=>
+
+let
+    endpoint = "datasets/" &dataset_id& "/executeQueries",
+    scope = "https://analysis.windows.net/powerbi/api/.default",
+    body = "client_id=" & client_id & "&scope=" & scope & "&client_secret=" & client_secret & "&grant_type=client_credentials",
+    src = Json.Document(Web.Contents("https://login.microsoftonline.com", [RelativePath = catalog_id &"/oauth2/v2.0/token",Content=Text.ToBinary(body),Headers=[#"Content-Type"="application/x-www-form-urlencoded"]])),
+    access_token = src[access_token],
+    content = Json.FromValue([queries = {[query = dax_query]}, serializerSettings = [includeNulls = true]]),
+    headers = [#"Content-Type" = "application/json", #"Authorization" = "Bearer " & access_token],
+    source = Json.Document(Web.Contents("https://api.powerbi.com/v1.0/myorg/", [RelativePath =  endpoint, Headers = headers, Content = content, ManualStatusHandling = {400,404,429}])),
+    results = source[results]{0}[tables]{0}[rows],
+    totable = Table.FromList(results, Splitter.SplitByNothing(), null, null, ExtraValues.Error)
+in
+    totable,
+
+result = Value.ReplaceType(function, FuncType),
+
+FuncType = type function (
+catalog_id as (type text meta [
+        Documentation.FieldCaption = "ID каталога:",
+        Documentation.SampleValues = {"b2e5f48-03a-b0a-49be838"}
+    ]),   
+
+    client_id as (type text meta [
+        Documentation.FieldCaption = "ID приложения:",
+        Documentation.SampleValues = {"b2e5f48-03a-b0a-49b30d8"}
+    ]),     
+
+client_secret as (type text meta [
+        Documentation.FieldCaption = "Секрет клиента:",
+        Documentation.SampleValues = {"tD3Q~R6SomiXt9nNL8bjnwYbkqzADalv"}
+    ]),     
+
+dataset_id as (type text meta [
+        Documentation.FieldCaption = "ID датасета:",
+        Documentation.SampleValues = {"b2e5f48-03a-b0a-49bd8"}
+    ]),     
+
+dax_query as (type text meta [
+        Documentation.FieldCaption = "Запрос DAX:",
+        Documentation.SampleValues = {"evaluate all(calendar)"},
+        Formatting.IsMultiLine = true
+    ])
+         )
+    as table meta [
+        Documentation.Name = "Функция получения данных API Power BI",
+        Documentation.LongDescription =    ""
+    ]
+
+
+in result
